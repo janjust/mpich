@@ -14,7 +14,9 @@
 #include "ch4_impl.h"
 #include "ch4r_comm.h"
 #include "ch4i_comm.h"
-
+#if defined HAVE_LIBHCOLL
+#include "../../common/hcoll/hcoll.h"
+#endif
 MPL_STATIC_INLINE_PREFIX int MPID_Comm_AS_enabled(MPIR_Comm * comm)
 {
     MPIR_FUNC_VERBOSE_STATE_DECL(MPID_STATE_MPID_COMM_AS_ENABLED);
@@ -200,6 +202,10 @@ MPL_STATIC_INLINE_PREFIX int MPIDI_Comm_create_hook(MPIR_Comm * comm)
     if (mpi_errno != MPI_SUCCESS) {
         MPIR_ERR_POP(mpi_errno);
     }
+#endif
+
+#if defined HAVE_LIBHCOLL
+    hcoll_comm_create(comm, NULL);
 #endif
 
   fn_exit:

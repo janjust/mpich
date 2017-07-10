@@ -10,7 +10,7 @@ static int hcoll_initialized = 0;
 static int hcoll_comm_world_initialized = 0;
 static int hcoll_progress_hook_id = 0;
 
-int hcoll_enable = 1;
+int hcoll_enable = -1;
 int hcoll_enable_barrier = 1;
 int hcoll_enable_bcast = 1;
 int hcoll_enable_allgather = 1;
@@ -69,32 +69,36 @@ int hcoll_initialize(void)
 {
     int mpi_errno;
     char *envar;
+    hcoll_init_opts_t *init_opts;
     mpi_errno = MPI_SUCCESS;
     envar = getenv("HCOLL_ENABLE");
+    hcoll_enable = 0;
     if (NULL != envar) {
         hcoll_enable = atoi(envar);
     }
-    if (0 == hcoll_enable) {
+
+    if (0 >= hcoll_enable) {
         goto fn_exit;
     }
+
 
 #if defined(MPL_USE_DBG_LOGGING)
     MPIR_DBG_HCOLL = MPL_dbg_class_alloc("HCOLL", "hcoll");
 #endif /* MPL_USE_DBG_LOGGING */
 
     hcoll_rte_fns_setup();
-    /*set INT_MAX/2 as tag_base here by the moment.
-     * Need to think more about it.
-     * The tag space should be positive, from > ~30 to MPI_TAG_UB value.
-     * It looks reasonable to set MPI_TAG_UB as base but it doesn't work for ofacm tags
-     * (probably due to wrong conversions from uint to int). That's why I set INT_MAX/2 instead of MPI_TAG_UB.
-     * BUT: it won't work for collectives whose sequence number reaches INT_MAX/2 number. In that case tags become negative.
-     * Moreover, it even won't work than 0 < (INT_MAX/2 - sequence number) < 30 because it can interleave with internal mpich coll tags.
-     */
-    hcoll_set_runtime_tag_offset(INT_MAX / 2, MPI_TAG_UB);
-    if (mpi_errno)
-        MPIR_ERR_POP(mpi_errno);
-    mpi_errno = hcoll_init();
+
+    hcoll_read_init_opts(&init_opts);
+    init_opts->base_tag = MPIR_FIRST_HCOLL_TAG;
+    init_opts->max_tag  = MPIR_LAST_HCOLL_TAG;
+
+#if defined MPICH_IS_THREADED
+    init_opts->enable_thread_support = MPIR_ThreadInfo.isThreaded;
+#else
+    init_opts->enable_thread_support = 0;
+#endif
+
+    mpi_errno = hcoll_init_with_opts(&init_opts);
     if (mpi_errno)
         MPIR_ERR_POP(mpi_errno);
 
@@ -118,6 +122,7 @@ int hcoll_initialize(void)
     CHECK_ENABLE_ENV_VARS(BCAST, bcast);
     CHECK_ENABLE_ENV_VARS(ALLGATHER, allgather);
     CHECK_ENABLE_ENV_VARS(ALLREDUCE, allreduce);
+
     CHECK_ENABLE_ENV_VARS(IBARRIER, ibarrier);
     CHECK_ENABLE_ENV_VARS(IBCAST, ibcast);
     CHECK_ENABLE_ENV_VARS(IALLGATHER, iallgather);
@@ -145,13 +150,15 @@ int hcoll_comm_create(MPIR_Comm * comm_ptr, void *param)
     int num_ranks;
     int context_destroyed;
     mpi_errno = MPI_SUCCESS;
+
+    if (0 == hcoll_enable) {
+        goto fn_exit;
+    }
+
     if (0 == hcoll_initialized) {
         mpi_errno = hcoll_initialize();
         if (mpi_errno)
             MPIR_ERR_POP(mpi_errno);
-    }
-    if (0 == hcoll_enable) {
-        goto fn_exit;
     }
     if (MPIR_Process.comm_world == comm_ptr) {
         hcoll_comm_world_initialized = 1;
@@ -161,7 +168,9 @@ int hcoll_comm_create(MPIR_Comm * comm_ptr, void *param)
         goto fn_exit;
     }
     num_ranks = comm_ptr->local_size;
-    if ((MPIR_COMM_KIND__INTRACOMM != comm_ptr->comm_kind) || (2 > num_ranks)) {
+    if ((MPIR_COMM_KIND__INTRACOMM != comm_ptr->comm_kind) || (2 > num_ranks)
+        || comm_ptr->hierarchy_kind == MPIR_COMM_HIERARCHY_KIND__NODE_ROOTS
+        || comm_ptr->hierarchy_kind == MPIR_COMM_HIERARCHY_KIND__NODE) {
         comm_ptr->hcoll_priv.is_hcoll_init = 0;
         goto fn_exit;
     }
@@ -212,7 +221,7 @@ int hcoll_comm_destroy(MPIR_Comm * comm_ptr, void *param)
 {
     int mpi_errno;
     int context_destroyed;
-    if (0 == hcoll_enable) {
+    if (0 >= hcoll_enable) {
         goto fn_exit;
     }
     mpi_errno = MPI_SUCCESS;

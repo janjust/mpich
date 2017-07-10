@@ -5,7 +5,8 @@ AC_DEFUN([PAC_SUBCFG_PREREQ_]PAC_SUBCFG_AUTO_SUFFIX,[
 	PAC_PUSH_FLAG(LIBS)
 	PAC_CHECK_HEADER_LIB([hcoll/api/hcoll_api.h],[hcoll],[hcoll_init],[have_hcoll=yes],[have_hcoll=no])
 	if test "$have_hcoll" = "yes" ; then
-	   PAC_APPEND_FLAG([-lhcoll],[WRAPPER_LIBS])
+           PAC_APPEND_FLAG([-lhcoll],[WRAPPER_LIBS])
+           PAC_APPEND_FLAG([-DHCOLL_ENABLED=1], [CPPFLAGS])
 	elif test ! -z "${with_hcoll}" ; then
 	   AC_MSG_ERROR(['hcoll/api/hcoll_api.h or libhcoll library not found.'])
 	fi
