@@ -40,14 +40,14 @@ int hcoll_Bcast(void *buffer, int count, MPI_Datatype datatype, int root,
     dte_data_representation_t dtype;
     int rc;
     MPL_DBG_MSG(MPIR_DBG_HCOLL, VERBOSE, "RUNNING HCOLL BCAST.");
-    dtype = mpi_dtype_2_dte_dtype(datatype);
+    dtype = mpi_dtype_2_hcoll_dtype(datatype, count, TRY_FIND_DERIVED);
     int is_homogeneous = 1, use_fallback = 0;
     MPI_Comm comm = comm_ptr->handle;
 #ifdef MPID_HAS_HETERO
     if (comm_ptr->is_hetero)
         is_homogeneous = 0;
 #endif
-    if (HCOL_DTE_IS_COMPLEX(dtype) || HCOL_DTE_IS_ZERO(dtype) || (0 == is_homogeneous)) {
+    if (HCOL_DTE_IS_ZERO(dtype) || (0 == is_homogeneous)) {
         /*If we are here then datatype is not simple predefined datatype */
         /*In future we need to add more complex mapping to the dte_data_representation_t */
         /* Now use fallback */
@@ -92,7 +92,7 @@ int hcoll_Allreduce(const void *sendbuf, void *recvbuf, int count, MPI_Datatype 
 #endif
 
     MPL_DBG_MSG(MPIR_DBG_HCOLL, VERBOSE, "RUNNING HCOL ALLREDUCE.");
-    Dtype = mpi_dtype_2_dte_dtype(datatype);
+    Dtype = mpi_dtype_2_hcoll_dtype(datatype, count, NO_DERIVED);
     Op = mpi_op_2_dte_op(op);
     if (MPI_IN_PLACE == sendbuf) {
         sendbuf = HCOLL_IN_PLACE;
@@ -144,8 +144,8 @@ int hcoll_Allgather(const void *sbuf, int scount, MPI_Datatype sdtype,
 #endif
 
     MPL_DBG_MSG(MPIR_DBG_HCOLL, VERBOSE, "RUNNING HCOLL ALLGATHER.");
-    stype = mpi_dtype_2_dte_dtype(sdtype);
-    rtype = mpi_dtype_2_dte_dtype(rdtype);
+    stype = mpi_dtype_2_hcoll_dtype(sdtype, scount, TRY_FIND_DERIVED);
+    rtype = mpi_dtype_2_hcoll_dtype(rdtype, rcount, TRY_FIND_DERIVED);
     if (MPI_IN_PLACE == sbuf) {
         sbuf = HCOLL_IN_PLACE;
     }
@@ -218,7 +218,7 @@ int hcoll_Ibcast_req(void *buffer, int count, MPI_Datatype datatype, int root,
     void **rt_handle;
     dte_data_representation_t dtype;
     MPL_DBG_MSG(MPIR_DBG_HCOLL, VERBOSE, "RUNNING HCOLL IBCAST.");
-    dtype = mpi_dtype_2_dte_dtype(datatype);
+    dtype = mpi_dtype_2_hcoll_dtype(datatype, count, NO_DERIVED);
     int is_homogeneous = 1, use_fallback = 0;
     MPI_Comm comm = comm_ptr->handle;
     MPI_Request req;
@@ -279,8 +279,8 @@ int hcoll_Iallgather_req(const void *sendbuf, int sendcount, MPI_Datatype sendty
 #endif
 
     MPL_DBG_MSG(MPIR_DBG_HCOLL, VERBOSE, "RUNNING HCOLL IALLGATHER.");
-    stype = mpi_dtype_2_dte_dtype(sendtype);
-    rtype = mpi_dtype_2_dte_dtype(recvtype);
+    stype = mpi_dtype_2_hcoll_dtype(sendtype, count, NO_DERIVED);
+    rtype = mpi_dtype_2_hcoll_dtype(recvtype, count, NO_DERIVED);
     if (MPI_IN_PLACE == sendbuf) {
         sendbuf = HCOLL_IN_PLACE;
     }
@@ -334,7 +334,7 @@ int hcoll_Iallreduce_req(const void *sendbuf, void *recvbuf, int count, MPI_Data
 #endif
 
     MPL_DBG_MSG(MPIR_DBG_HCOLL, VERBOSE, "RUNNING HCOL IALLREDUCE.");
-    Dtype = mpi_dtype_2_dte_dtype(datatype);
+    Dtype = mpi_dtype_2_hcoll_dtype(datatype, count, NO_DERIVED);
     Op = mpi_op_2_dte_op(op);
     if (MPI_IN_PLACE == sendbuf) {
         sendbuf = HCOLL_IN_PLACE;

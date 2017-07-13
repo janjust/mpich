@@ -625,6 +625,13 @@ MPL_STATIC_INLINE_PREFIX int MPIDI_Type_commit_hook(MPIR_Datatype * type)
         MPIR_ERR_POP(mpi_errno);
     }
 
+#if HAVE_LIBHCOLL
+    mpi_errno = hcoll_type_commit_hook(type);
+    if (mpi_errno != MPI_SUCCESS) {
+        MPIR_ERR_POP(mpi_errno);
+    }
+#endif
+
 #ifdef MPIDI_BUILD_CH4_SHM
     mpi_errno = MPIDI_SHM_mpi_type_commit_hook(type);
     if (mpi_errno != MPI_SUCCESS) {
@@ -654,6 +661,13 @@ MPL_STATIC_INLINE_PREFIX int MPIDI_Type_free_hook(MPIR_Datatype * type)
     if (mpi_errno != MPI_SUCCESS) {
         MPIR_ERR_POP(mpi_errno);
     }
+
+#if HAVE_LIBHCOLL
+    mpi_errno = hcoll_type_free_hook(type);
+    if (mpi_errno != MPI_SUCCESS) {
+        MPIR_ERR_POP(mpi_errno);
+    }
+#endif
 
 #ifdef MPIDI_BUILD_CH4_SHM
     mpi_errno = MPIDI_SHM_mpi_type_free_hook(type);

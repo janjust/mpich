@@ -146,6 +146,7 @@ int hcoll_initialize(void)
 #define FCNAME MPL_QUOTE(FUNCNAME)
 int hcoll_comm_create(MPIR_Comm * comm_ptr, void *param)
 {
+    printf ("%s\n", __FUNCTION__);
     int mpi_errno;
     int num_ranks;
     int context_destroyed;

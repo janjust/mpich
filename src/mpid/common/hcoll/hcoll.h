@@ -11,6 +11,10 @@
 #include "hcoll/api/hcoll_api.h"
 #include "hcoll/api/hcoll_constants.h"
 
+#ifndef HCOLL_VERSION
+#define HCOLL_VERSION(major, minor) (((major)<<HCOLL_MAJOR_BIT)|((minor)<<HCOLL_MINOR_BIT))
+#endif
+
 extern int world_comm_destroying;
 
 #if defined(MPL_USE_DBG_LOGGING)

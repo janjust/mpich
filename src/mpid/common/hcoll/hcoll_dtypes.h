@@ -6,9 +6,22 @@
 
 #ifndef _HCOLL_DTYPES_H_
 #define _HCOLL_DTYPES_H_
+#include "src/include/mpi.h"
 #include "hcoll/api/hcoll_dte.h"
+#include "hcoll.h"
+#include <mpidimpl.h>
 
-static dte_data_representation_t mpi_dtype_2_dte_dtype(MPI_Datatype datatype)
+enum {
+    TRY_FIND_DERIVED,
+    NO_DERIVED
+};
+
+extern int hcoll_type_attr_keyval;
+
+int MPID_Common_hcoll_type_commit_hook(MPIR_Datatype *dtype_p);
+int MPID_Common_hcoll_type_free_hook(MPIR_Datatype *dtype_p);
+
+static dte_data_representation_t datatype_2_dte_data_rep(MPI_Datatype datatype)
 {
     switch (datatype) {
     case MPI_CHAR:
@@ -44,6 +57,124 @@ static dte_data_representation_t mpi_dtype_2_dte_dtype(MPI_Datatype datatype)
     }
 }
 
+static inline  dte_data_representation_t
+mpi_predefined_derived_2_hcoll(MPI_Datatype datatype) {
+    MPI_Aint size;
+
+    switch(datatype) {
+    case MPI_FLOAT_INT:
+        return DTE_FLOAT_INT;
+    case MPI_DOUBLE_INT:
+        return DTE_DOUBLE_INT;
+    case MPI_LONG_INT:
+        return DTE_LONG_INT;
+    case MPI_SHORT_INT:
+        return DTE_SHORT_INT;
+    case MPI_LONG_DOUBLE_INT:
+        return DTE_LONG_DOUBLE_INT;
+    case MPI_2INT:
+        return DTE_2INT;
+#ifdef HAVE_FORTRAN_BINDING
+#if HCOLL_API >= HCOLL_VERSION(3,7)
+    case MPI_2INTEGER:
+        MPIDU_Datatype_get_size_macro(datatype, size);
+        switch(size) {
+            case 4:
+            return DTE_2INT;
+            case 8:
+                return DTE_2INT64;
+            default:
+                return DTE_ZERO;
+        }
+    case MPI_2REAL:
+        MPIDU_Datatype_get_size_macro(datatype, size);
+        switch(size) {
+            case 4:
+                return DTE_2FLOAT32;
+            case 8:
+                return DTE_2FLOAT64;
+            default:
+                return DTE_ZERO;
+        }
+    case MPI_2DBLPREC:
+        MPIDU_Datatype_get_size_macro(datatype, size);
+        switch(size) {
+            case 4:
+                return DTE_2FLOAT32;
+            case 8:
+                return DTE_2FLOAT64;
+            default:
+                return DTE_ZERO;
+        }
+#endif
+#endif
+    default:
+        break;
+    }
+    return DTE_ZERO;
+}
+
+// #if HCOLL_API => HCOLL_VERSION(3,6)
+// static inline
+// int hcoll_map_derived_type(MPI_Datatype *dtype, dte_data_representation *new_dte)
+// {
+//     int rc;
+//     if (NULL == dtype) {
+//         return MPI_SUCCESS;
+//     }
+//     rc = hcoll_create_mpi_type((void *)dtype, new_dte);
+//     return rc == HCOLL_SUCCESS ? MPI_SUCCESS : MPI_ERROR;
+// }
+// 
+// static dte_data_representation_t find_derived_mapping(MPI_Datatype) {
+//     dte_data_representation_t dte = DTE_ZERO;
+//     mca_coll_hcoll_dtype_t *hcoll_dtype;
+//     if (mca_coll_hcoll_component.derived_types_support_enabled) {
+//     }
+// 
+//     return dte;
+// }
+// #endif
+
+static dte_data_representation_t
+mpi_dtype_2_hcoll_dtype(MPI_Datatype datatype, int count, const int mode)
+{
+    int dt_contig;
+    size_t data_sz;
+    MPI_Aint dt_true_lb;
+    MPIR_Datatype *dt_ptr;
+    dte_data_representation_t dte_data_rep = DTE_ZERO;
+
+    MPIDI_Datatype_get_info( (MPI_Count) count, datatype, dt_contig, data_sz, dt_ptr, dt_true_lb);
+
+    if (NULL == dt_ptr ) {
+        /* Built-in type */
+        dte_data_rep = datatype_2_dte_data_rep(datatype);
+    }
+#if HCOLL_API >= HCOLL_VERSION(3,6)
+    else if (TRY_FIND_DERIVED == mode) {
+
+        /* Check for predefined derived types */
+        dte_data_rep = mpi_predefined_derived_2_hcoll(datatype);
+        if (HCOL_DTE_IS_ZERO(dte_data_rep)) {
+            /* Must be a non-predefined derived mapping, get it */
+            dte_data_rep = (dte_data_representation_t) dt_ptr->dev.hcoll_datatype;
+        }
+    }
+#endif
+
+    /* We always fall back, don't even think about forcing it! */
+    /* XXX Fix me
+    if (HCOL_DTE_IS_ZERO(dte_data_rep) && TRY_FIND_DERIVED == mode
+            && !mca_coll_hcoll_component.hcoll_datatype_fallback) {
+        dte_data_rep = DTE_ZERO;
+        dte_data_rep.rep.in_line_rep.data_handle.in_line.in_line = 0;
+        dte_data_rep.rep.in_line_rep.data_handle.pointer_to_handle = (uint64_t ) &datatype;
+    }
+    */
+    return dte_data_rep;
+}
+
 static hcoll_dte_op_t *mpi_op_2_dte_op(MPI_Op op)
 {
     switch (op) {
@@ -70,5 +201,10 @@ static hcoll_dte_op_t *mpi_op_2_dte_op(MPI_Op op)
     default:
         return &hcoll_dte_op_null;
     }
+}
+
+static int hcoll_type_attr_del_fn(MPI_Datatype type, int keyval, void *attr_val, void *extra) {
+    /* Old hcoll without dtype support */
+    return MPI_SUCCESS;
 }
 #endif
